@@ -4,8 +4,9 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"github.com/sumory/gotty/buffer"
+	"github.com/sumory/gotty/codec"
 	"github.com/sumory/gotty/config"
-	"github.com/sumory/gotty/packet"
 	log "github.com/sumory/log4go"
 	"io"
 	"net"
@@ -15,19 +16,27 @@ import (
 
 //会话
 type Session struct {
-	conn         *net.TCPConn //tcp的session
-	remoteAddr   string
+	conn       *net.TCPConn //tcp的session
+	remoteAddr string
+
+	//消息传输
 	bReader      *bufio.Reader
 	bWriter      *bufio.Writer
-	ReadChannel  chan *packet.Packet //request的channel
-	WriteChannel chan *packet.Packet //response的channel
-	isClose      bool
-	lastTime     time.Time
-	config       *config.GottyConfig
-	attrs        map[string]interface{}
+	ReadChannel  chan []byte //request的channel
+	WriteChannel chan []byte //response的channel
+	inBuffer     *buffer.Buffer
+	outBuffer    *buffer.Buffer
+
+	isClose  bool
+	lastTime time.Time
+	config   *config.GottyConfig
+	attrs    map[string]interface{}
+
+	//编解码
+	codec codec.Codec
 }
 
-func NewSession(conn *net.TCPConn, config *config.GottyConfig) *Session {
+func NewSession(conn *net.TCPConn, codec codec.Codec, config *config.GottyConfig) *Session {
 
 	conn.SetKeepAlive(true)
 	conn.SetKeepAlivePeriod(config.IdleTime * 2)
@@ -36,14 +45,21 @@ func NewSession(conn *net.TCPConn, config *config.GottyConfig) *Session {
 	conn.SetWriteBuffer(config.WriteBufSize)
 
 	session := &Session{
-		conn:         conn,
+		conn:       conn,
+		remoteAddr: conn.RemoteAddr().String(),
+
 		bReader:      bufio.NewReaderSize(conn, config.ReadBufSize),
 		bWriter:      bufio.NewWriterSize(conn, config.WriteBufSize),
-		ReadChannel:  make(chan *packet.Packet, config.ReadChanSize),
-		WriteChannel: make(chan *packet.Packet, config.WriteChanSize),
-		isClose:      false,
-		remoteAddr:   conn.RemoteAddr().String(),
-		config:       config}
+		ReadChannel:  make(chan []byte, config.ReadChanSize),
+		WriteChannel: make(chan []byte, config.WriteChanSize),
+		inBuffer:     buffer.NewBuffer(0, 1024),
+		outBuffer:    buffer.NewBuffer(0, 1024),
+
+		isClose: false,
+		config:  config,
+
+		codec: codec,
+	}
 	return session
 }
 
@@ -72,59 +88,34 @@ func (self *Session) ReadPacket() {
 		}
 	}()
 
-	//缓存本次包的数据
-	buff := make([]byte, 0, self.config.ReadBufSize)
-
-	for !self.isClose {
-		line, err := self.bReader.ReadSlice(packet.CMD_CRLF[1])
-		//如果没有达到请求头的最小长度则继续读取
-		if nil != err {
-			buff = buff[:0]
-			// buff.Reset()
-			//链接是关闭的
-			if err == io.EOF ||
-				err == syscall.EPIPE ||
-				err == syscall.ECONNRESET {
-				self.Close()
-				log.Error("session read packet failed, close session, remoteAddr: %s, err: %s", self.remoteAddr, err)
-			}
-			continue
-		}
-
-		l := len(buff) + len(line)
-		//如果是\n那么就是一个完整的包
-		if l >= packet.MAX_PACKET_BYTES {
-			log.Error("session read packet too large, close session, remoteAddr: %s, err: %s", self.remoteAddr, err)
-			self.Close()
-			return
-		} else {
-			buff = append(buff, line...)
-		}
-
-		//complete packet
-		if l > packet.PACKET_HEAD_LEN && buff[len(buff)-2] == packet.CMD_CRLF[0] {
-			packet, err := packet.UnmarshalTLV(buff)
-			if nil != err || nil == packet {
-				log.Error("session read packet unmarshal failed, err: %s, buff length:%d, buff: %s", err, len(buff), buff)
-				buff = buff[:0]
-				continue
-			}
-
-			//写入缓冲
-			self.ReadChannel <- packet
-			//重置buffer
-			buff = buff[:0]
-		}
+	//编解码接口调用
+	e:=self.codec.ReadPacket(self.conn, self.inBuffer)
+	if e!=nil{
+		log.Error("read packet error, ",e)
+		self.Close()
 	}
+
+	tmpData:=make([]byte, self.inBuffer.Length())
+
+	copy(self.inBuffer.Data[:],tmpData)
+	//写入缓冲
+	self.ReadChannel <- tmpData
 }
 
 //写入响应
 func (self *Session) WritePacket() {
-	var p *packet.Packet
+	var p []byte
 	for !self.isClose {
 		p = <-self.WriteChannel
 		if nil != p {
-			self.write0(p)
+
+log.Info("写出报。。")
+			e:=self.codec.WritePacket(self.conn,self.outBuffer, p)
+			if e!=nil {
+				log.Error("写出包错误", e)
+			}
+
+			//self.write0(p)
 			self.lastTime = time.Now()
 		} else {
 			log.Warn("the packet to write is nil")
@@ -133,18 +124,10 @@ func (self *Session) WritePacket() {
 }
 
 //真正写入网络的流
-func (self *Session) write0(tlv *packet.Packet) {
-
-	p := packet.MarshalPacket(tlv)
-	if nil == p || len(p) <= 0 {
-		log.Warn("packet after marshal to bytes is empty: %s", tlv)
-		//如果是同步写出
-		return
-	}
-
-	length, err := self.conn.Write(p)
+func (self *Session) write0(d []byte) {
+	length, err := self.conn.Write(d)
 	if nil != err {
-		log.Error("session write0 error: remoteAddr %s, writeLength %d, fullLength %d, err %s", self.remoteAddr, length, len(p), err)
+		log.Error("session write0 error: remoteAddr %s, writeLength %d, fullLength %d, err %s", self.remoteAddr, length, len(d), err)
 		//链接是关闭的
 		if err == io.EOF || err == syscall.EPIPE || err == syscall.ECONNRESET {
 			log.Info("to close session")
@@ -154,13 +137,13 @@ func (self *Session) write0(tlv *packet.Packet) {
 
 		//如果没有写够则再写一次,是否能够写完？
 		if err == io.ErrShortWrite {
-			self.conn.Write(p[length:])
+			self.conn.Write(d[length:])
 		}
 	}
 }
 
 //写出数据
-func (self *Session) Write(p *packet.Packet) error {
+func (self *Session) Write(d []byte) error {
 	defer func() {
 		if err := recover(); nil != err {
 			log.Error("session write revoer faild: %s, %s", self.remoteAddr, err)
@@ -169,7 +152,7 @@ func (self *Session) Write(p *packet.Packet) error {
 
 	if !self.isClose {
 		select {
-		case self.WriteChannel <- p:
+		case self.WriteChannel <- d:
 			return nil
 		default:
 			return errors.New(fmt.Sprintf("write channel is full: %s", self.remoteAddr))

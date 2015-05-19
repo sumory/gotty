@@ -1,9 +1,9 @@
 package gotty
 
 import (
+	"github.com/sumory/gotty/utils"
 	"sync"
 	"sync/atomic"
-	"github.com/sumory/gotty/utils"
 )
 
 type Context struct {

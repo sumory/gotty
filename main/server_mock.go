@@ -3,21 +3,19 @@ package main
 import (
 	"github.com/sumory/gotty/client"
 	"github.com/sumory/gotty/config"
-	"github.com/sumory/gotty/packet"
 	"github.com/sumory/gotty/server"
-	"log"
+	log "github.com/sumory/log4go"
 	"time"
+	"github.com/sumory/gotty/codec"
+	"encoding/binary"
 )
 
-func packetDispatcher(c *client.GottyClient, p *packet.Packet) {
-	resp := packet.NewRespPacket(p.Opaque, p.CmdType, p.Data)
-	log.Printf("server dispatch packet: %d %d %s", resp.Opaque, resp.CmdType, p.Data)
-	c.Write(*resp)
+func packetDispatcher(c *client.GottyClient, d []byte) {
+	log.Info("server dispatch packet: %v", d)
+	c.Write(d)
 }
 
 func main() {
-	log.SetFlags(log.Lshortfile | log.LstdFlags | log.Lmicroseconds)
-	log.SetPrefix("")
 
 	name := "gotty-server"
 	readBufSize := 16 * 1024
@@ -33,7 +31,10 @@ func main() {
 	maxOpaque := 160000      // 最大id标识
 	concurrent := 8          // 缓冲器的并发因子
 
-	server := server.NewGottyServer(addr, keepaliveTime, gottyConfig, maxOpaque, concurrent, packetDispatcher)
+
+	codec:= codec.NewLengthBasedCodec(4,binary.BigEndian)
+
+	server := server.NewGottyServer(addr, keepaliveTime, gottyConfig, maxOpaque, concurrent, packetDispatcher, codec)
 
 	server.ListenAndServe()
 

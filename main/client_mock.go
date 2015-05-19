@@ -3,29 +3,30 @@ package main
 import (
 	"github.com/sumory/gotty"
 	"github.com/sumory/gotty/client"
-	"github.com/sumory/gotty/utils"
 	"github.com/sumory/gotty/config"
-	"github.com/sumory/gotty/packet"
-	"log"
+	"github.com/sumory/gotty/utils"
+	log "github.com/sumory/log4go"
 	"net"
 	"time"
+	"github.com/sumory/gotty/codec"
+	"encoding/binary"
 )
 
-func clientPacketDispatcher(c *client.GottyClient, resp *packet.Packet) {
-	c.Attach(resp.Opaque, resp.Data)
-	log.Printf("clientPacketDispatcher %s\n", string(resp.Data))
+func handler(c *client.GottyClient, resp []byte) {
+	//c.Attach(resp.Opaque, resp.Data)
+	log.Info("clientPacketDispatcher", resp)
 }
 
-func dial(hostport string)(*net.TCPConn,error){
+func dial(hostport string) (*net.TCPConn, error) {
 	//连接
 	remoteAddr, err_r := net.ResolveTCPAddr("tcp4", hostport)
 	if nil != err_r {
-		log.Printf("ResolveTCPAddr err: %s", err_r)
+		log.Error("ResolveTCPAddr err: %s", err_r)
 		return nil, err_r
 	}
 	conn, err := net.DialTCP("tcp4", nil, remoteAddr)
 	if nil != err {
-		log.Println("DiaTcp err: %s", hostport, err)
+		log.Error("DiaTcp err: %s", hostport, err)
 		return nil, err
 	}
 
@@ -33,8 +34,6 @@ func dial(hostport string)(*net.TCPConn,error){
 }
 
 func main() {
-	log.SetFlags(log.Lshortfile | log.LstdFlags | log.Lmicroseconds)
-	log.SetPrefix("")
 
 	gottyConfig := config.NewDefaultGottyConfig()
 
@@ -49,21 +48,22 @@ func main() {
 	clientManager := client.NewClientManager(reconnector)
 
 	conn, _ := dial("localhost:8888")
-	client := client.NewGottyClient(conn, gottyConfig, context, clientPacketDispatcher)
+	codec:= codec.NewLengthBasedCodec(4,binary.BigEndian)
+	client := client.NewGottyClient(conn, codec, gottyConfig, context, handler)
 	client.Start()
 
 	clientManager.Join(client)
 
-	p := packet.NewPacket(1, []byte("ping..."))
+	p := []byte("ping...")
 	c := clientManager.GetClient(client.RemoteAddr())
 	ch := make(chan int, 20)
 	for {
 		ch <- 1
 		time.Sleep(1 * time.Second)
 		go func() {
-			_, err := c.WriteAndGet(*p, 1000*time.Millisecond)
+			err := c.Write(p)
 			if nil != err {
-				log.Printf("wait response failed: %s\n", err)
+				log.Error("wait response failed: %s\n", err)
 			} else {
 			}
 			<-ch

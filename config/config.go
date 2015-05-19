@@ -16,6 +16,7 @@ func NewGottyConfig(name string, //
 	readBufSize int, readChanSize int, writeBufSize int, writeChanSize int, //
 	idleTime time.Duration, //
 	dispatcherQueueSize int) *GottyConfig {
+
 	config := &GottyConfig{
 		Name:                name,
 		ReadBufSize:         readBufSize,
@@ -32,9 +33,9 @@ func NewGottyConfig(name string, //
 func NewDefaultGottyConfig() *GottyConfig {
 	config := &GottyConfig{
 		Name:                "default-gotty-config",
-		ReadBufSize:         16*1024,
+		ReadBufSize:         128*1024,
 		ReadChanSize:        10000,
-		WriteBufSize:        16*1024,
+		WriteBufSize:        128*1024,
 		WriteChanSize:       10000,
 		IdleTime:            10* time.Second,
 		DispatcherQueueSize: make(chan int, 1000)}

@@ -8,14 +8,14 @@ import (
 
 type ClientManager struct {
 	reconnector *Reconnector
-	allClients       map[string]*GottyClient
-	lock             sync.RWMutex
+	allClients  map[string]*GottyClient
+	lock        sync.RWMutex
 }
 
 func NewClientManager(reconnectManager *Reconnector) *ClientManager {
 	clientManager := &ClientManager{
 		reconnector: reconnectManager,
-		allClients:       make(map[string]*GottyClient, 100),
+		allClients:  make(map[string]*GottyClient, 100),
 	}
 
 	if reconnectManager.allowReconnect {

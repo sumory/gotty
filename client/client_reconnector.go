@@ -35,9 +35,9 @@ func (self *reconnectTask) reconnect() (bool, error) {
 //重连管理器
 type Reconnector struct {
 	timers            map[string]*time.Timer //host-port
-	allowReconnect    bool          //是否允许重连
-	reconnectTimeout  time.Duration //重连超时
-	maxReconnectTimes int           //最大重连次数
+	allowReconnect    bool                   //是否允许重连
+	reconnectTimeout  time.Duration          //重连超时
+	maxReconnectTimes int                    //最大重连次数
 	lock              sync.Mutex
 }
 
@@ -104,7 +104,6 @@ func (self *Reconnector) startReconTask(task *reconnectTask) {
 
 	self.timers[addr] = timer
 }
-
 
 func (self *Reconnector) cancel(hostport string) {
 	self.lock.Lock()

@@ -5,10 +5,10 @@ import (
 	"github.com/sumory/gotty/client"
 	"github.com/sumory/gotty/utils"
 	"github.com/sumory/gotty/config"
-	"github.com/sumory/gotty/packet"
 	log "github.com/sumory/log4go"
 	"net"
 	"time"
+	"github.com/sumory/gotty/codec"
 )
 
 type GottyServer struct {
@@ -18,7 +18,10 @@ type GottyServer struct {
 	isShutdown       bool
 	config           *config.GottyConfig
 	context          *gotty.Context
-	packetDispatcher func(client *client.GottyClient, p *packet.Packet) //包处理函数
+	handler func(client *client.GottyClient, d []byte) //包处理函数
+
+	//编解码
+	codec codec.Codec
 }
 
 func NewGottyServer( //
@@ -27,7 +30,8 @@ func NewGottyServer( //
 	config *config.GottyConfig, // 配置信息
 	maxOpaque int, // 最大id标识
 	concurrent int, //缓冲器的并发因子
-	packetDispatcher func(client *client.GottyClient, p *packet.Packet), //包处理函数
+	handler func(client *client.GottyClient, d []byte), //包处理函数
+	codec codec.Codec, //编解码器
 ) *GottyServer {
 	reqHolder := gotty.NewReqHolder(concurrent, maxOpaque)
 	timeWheel := utils.NewTimeWheel(1*time.Second, 6, 10)
@@ -40,7 +44,8 @@ func NewGottyServer( //
 		isShutdown:       false,
 		config:           config,
 		context:          context,
-		packetDispatcher: packetDispatcher, //包处理函数
+		handler: handler, //包处理函数
+		codec:			  codec,
 	}
 	return server
 }
@@ -72,7 +77,7 @@ func (self *GottyServer) serve(listener *StoppedListener) error {
 			continue
 		} else {
 			log.Info("listner accept new connection: %s", conn.RemoteAddr())
-			gottyClient := client.NewGottyClient(conn, self.config, self.context, self.packetDispatcher)
+			gottyClient := client.NewGottyClient(conn, self.codec, self.config, self.context, self.handler)
 			gottyClient.Start()
 		}
 	}
