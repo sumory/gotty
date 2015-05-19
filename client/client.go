@@ -83,6 +83,7 @@ func (self *GottyClient) dispatchPacket() {
 		self.config.DispatcherQueueSize <- 1
 		go func() {
 			defer func() {
+				fmt.Println("处理包defer")
 				<-self.config.DispatcherQueueSize
 			}()
 
@@ -120,16 +121,6 @@ func (self *GottyClient) reconnect() (bool, error) {
 
 
 
-
-func (self *GottyClient) updateHeartBeat(version int64) {
-	if version > self.heartbeat {
-		self.heartbeat = version
-	}
-}
-
-func (self *GottyClient) Pong(opaque int32, version int64) {
-	self.updateHeartBeat(version)
-}
 
 func (self *GottyClient) IsClosed() bool {
 	return self.session.Closed()

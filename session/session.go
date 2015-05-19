@@ -8,9 +8,7 @@ import (
 	"github.com/sumory/gotty/codec"
 	"github.com/sumory/gotty/config"
 	log "github.com/sumory/log4go"
-	"io"
 	"net"
-	"syscall"
 	"time"
 )
 
@@ -82,24 +80,26 @@ func (self *Session) Idle() bool {
 
 //读取
 func (self *Session) ReadPacket() {
+	log.Info("读取包")
 	defer func() {
 		if err := recover(); nil != err {
 			log.Info("session read packet panic recover failed, remoteAddr: %s, err: %s", self.remoteAddr, err)
 		}
 	}()
+	for !self.isClose {
+		//编解码接口调用
+		e := self.codec.ReadPacket(self.conn, self.inBuffer)
+		if e!=nil {
+			log.Error("read packet error, ", e)
+			self.Close()
+		}
 
-	//编解码接口调用
-	e:=self.codec.ReadPacket(self.conn, self.inBuffer)
-	if e!=nil{
-		log.Error("read packet error, ",e)
-		self.Close()
+		tmpData := make([]byte, self.inBuffer.Length())
+
+		copy(self.inBuffer.Data[:], tmpData)
+		//写入缓冲
+		self.ReadChannel <- tmpData
 	}
-
-	tmpData:=make([]byte, self.inBuffer.Length())
-
-	copy(self.inBuffer.Data[:],tmpData)
-	//写入缓冲
-	self.ReadChannel <- tmpData
 }
 
 //写入响应
@@ -109,10 +109,12 @@ func (self *Session) WritePacket() {
 		p = <-self.WriteChannel
 		if nil != p {
 
-log.Info("写出报。。")
+			log.Info("WritePacket 写出包")
 			e:=self.codec.WritePacket(self.conn,self.outBuffer, p)
 			if e!=nil {
 				log.Error("写出包错误", e)
+			}else{
+				log.Info("写出包成功")
 			}
 
 			//self.write0(p)
@@ -123,24 +125,6 @@ log.Info("写出报。。")
 	}
 }
 
-//真正写入网络的流
-func (self *Session) write0(d []byte) {
-	length, err := self.conn.Write(d)
-	if nil != err {
-		log.Error("session write0 error: remoteAddr %s, writeLength %d, fullLength %d, err %s", self.remoteAddr, length, len(d), err)
-		//链接是关闭的
-		if err == io.EOF || err == syscall.EPIPE || err == syscall.ECONNRESET {
-			log.Info("to close session")
-			self.Close()
-			return
-		}
-
-		//如果没有写够则再写一次,是否能够写完？
-		if err == io.ErrShortWrite {
-			self.conn.Write(d[length:])
-		}
-	}
-}
 
 //写出数据
 func (self *Session) Write(d []byte) error {
