@@ -1,15 +1,15 @@
 package main
 
 import (
+	"encoding/binary"
 	"github.com/sumory/gotty"
 	"github.com/sumory/gotty/client"
+	"github.com/sumory/gotty/codec"
 	"github.com/sumory/gotty/config"
 	"github.com/sumory/gotty/utils"
 	log "github.com/sumory/log4go"
 	"net"
 	"time"
-	"github.com/sumory/gotty/codec"
-	"encoding/binary"
 )
 
 func handler(c *client.GottyClient, resp []byte) {
@@ -21,12 +21,12 @@ func dial(hostport string) (*net.TCPConn, error) {
 	//连接
 	remoteAddr, err_r := net.ResolveTCPAddr("tcp4", hostport)
 	if nil != err_r {
-		log.Error("ResolveTCPAddr err: %s", err_r)
+		log.Error("ResolveTCPAddr err:", err_r)
 		return nil, err_r
 	}
 	conn, err := net.DialTCP("tcp4", nil, remoteAddr)
 	if nil != err {
-		log.Error("DiaTcp err: %s", hostport, err)
+		log.Error("DiaTcp err:", hostport, err)
 		return nil, err
 	}
 
@@ -47,8 +47,8 @@ func main() {
 	reconnector := client.NewReconnector(true, 3*time.Second, 10)
 	clientManager := client.NewClientManager(reconnector)
 
-	conn, _ := dial("localhost:8888")
-	codec:= codec.NewLengthBasedCodec(4,binary.BigEndian)
+	conn, _ := dial("localhost:6789")
+	codec := codec.NewLengthBasedCodec(4, binary.BigEndian)
 	client := client.NewGottyClient(conn, codec, gottyConfig, context, handler)
 	client.Start()
 
@@ -63,7 +63,7 @@ func main() {
 		go func() {
 			err := c.Write(p)
 			if nil != err {
-				log.Error("wait response failed: %s\n", err)
+				log.Error("wait response failed: ", err)
 			} else {
 			}
 			<-ch

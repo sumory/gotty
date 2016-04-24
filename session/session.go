@@ -9,11 +9,13 @@ import (
 	"github.com/sumory/gotty/config"
 	log "github.com/sumory/log4go"
 	"net"
+	"sync/atomic"
 	"time"
 )
 
 //会话
 type Session struct {
+	id         uint64
 	conn       *net.TCPConn //tcp的session
 	remoteAddr string
 
@@ -34,6 +36,8 @@ type Session struct {
 	codec codec.Codec
 }
 
+var GlobalSessionID uint64
+
 func NewSession(conn *net.TCPConn, codec codec.Codec, config *config.GottyConfig) *Session {
 
 	conn.SetKeepAlive(true)
@@ -43,6 +47,7 @@ func NewSession(conn *net.TCPConn, codec codec.Codec, config *config.GottyConfig
 	conn.SetWriteBuffer(config.WriteBufSize)
 
 	session := &Session{
+		id:         atomic.AddUint64(&GlobalSessionID, 1),
 		conn:       conn,
 		remoteAddr: conn.RemoteAddr().String(),
 
@@ -89,7 +94,7 @@ func (self *Session) ReadPacket() {
 	for !self.isClose {
 		//编解码接口调用
 		e := self.codec.ReadPacket(self.conn, self.inBuffer)
-		if e!=nil {
+		if e != nil {
 			log.Error("read packet error, ", e)
 			self.Close()
 		}
@@ -110,10 +115,10 @@ func (self *Session) WritePacket() {
 		if nil != p {
 
 			log.Info("WritePacket 写出包")
-			e:=self.codec.WritePacket(self.conn,self.outBuffer, p)
-			if e!=nil {
+			e := self.codec.WritePacket(self.conn, self.outBuffer, p)
+			if e != nil {
 				log.Error("写出包错误", e)
-			}else{
+			} else {
 				log.Info("写出包成功")
 			}
 
@@ -124,7 +129,6 @@ func (self *Session) WritePacket() {
 		}
 	}
 }
-
 
 //写出数据
 func (self *Session) Write(d []byte) error {
@@ -151,7 +155,6 @@ func (self *Session) Closed() bool {
 }
 
 func (self *Session) Close() error {
-
 	if !self.isClose {
 		self.isClose = true
 		self.conn.Close()
