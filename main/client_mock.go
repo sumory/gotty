@@ -2,27 +2,25 @@ package main
 
 import (
 	"encoding/binary"
-	"github.com/sumory/gotty"
+	"fmt"
 	"github.com/sumory/gotty/client"
 	"github.com/sumory/gotty/codec"
 	"github.com/sumory/gotty/config"
-	"github.com/sumory/gotty/utils"
 	log "github.com/sumory/log4go"
 	"net"
 	"time"
 )
 
 func handler(c *client.GottyClient, resp []byte) {
-	//c.Attach(resp.Opaque, resp.Data)
-	log.Info("clientPacketDispatcher", resp)
+	log.Info("客户端收到包, %s", string(resp))
 }
 
 func dial(hostport string) (*net.TCPConn, error) {
 	//连接
-	remoteAddr, err_r := net.ResolveTCPAddr("tcp4", hostport)
-	if nil != err_r {
-		log.Error("ResolveTCPAddr err:", err_r)
-		return nil, err_r
+	remoteAddr, err := net.ResolveTCPAddr("tcp4", hostport)
+	if nil != err {
+		log.Error("ResolveTCPAddr err:", err)
+		return nil, err
 	}
 	conn, err := net.DialTCP("tcp4", nil, remoteAddr)
 	if nil != err {
@@ -34,34 +32,25 @@ func dial(hostport string) (*net.TCPConn, error) {
 }
 
 func main() {
-
 	gottyConfig := config.NewDefaultGottyConfig()
-
-	maxOpaque := 160000 // 最大id标识
-	concurrent := 8     // 缓冲器的并发因子
-	reqHolder := gotty.NewReqHolder(concurrent, maxOpaque)
-	timeWheel := utils.NewTimeWheel(1*time.Second, 6, 10)
-	context := gotty.NewContext(reqHolder, timeWheel)
-
-	// 重连管理器
-	reconnector := client.NewReconnector(true, 3*time.Second, 10)
-	clientManager := client.NewClientManager(reconnector)
-
+	var nBit uint8 = 4
 	conn, _ := dial("localhost:6789")
-	codec := codec.NewLengthBasedCodec(4, binary.BigEndian)
-	client := client.NewGottyClient(conn, codec, gottyConfig, context, handler)
+	codec := codec.NewLengthBasedCodec(nBit, binary.BigEndian)
+	client := client.NewGottyClient(conn, codec, gottyConfig, handler)
 	client.Start()
 
-	clientManager.Join(client)
-
-	p := []byte("ping...")
-	c := clientManager.GetClient(client.RemoteAddr())
 	ch := make(chan int, 20)
 	for {
 		ch <- 1
 		time.Sleep(1 * time.Second)
 		go func() {
-			err := c.Write(p)
+			body := []byte(fmt.Sprintf("ping --> %d", time.Now().UnixNano()/1000000))
+			p := make([]byte, int(nBit*2)+len(body))
+			//写总长
+			binary.BigEndian.PutUint64(p[0:], uint64(int(nBit*2)+len(body)))
+			binary.BigEndian.PutUint64(p[4:], uint64(0))
+			copy(p[nBit*2:], body)
+			err := client.Write(p)
 			if nil != err {
 				log.Error("wait response failed: ", err)
 			} else {
@@ -70,5 +59,4 @@ func main() {
 		}()
 	}
 
-	select {}
 }

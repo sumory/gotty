@@ -12,7 +12,7 @@ import (
 )
 
 func packetDispatcher(c *client.GottyClient, d []byte) {
-	log.Info("server dispatch packet: %v", d)
+	log.Debug("server dispatch packet------->: %s", d)
 	c.Write(d)
 }
 

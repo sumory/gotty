@@ -2,7 +2,6 @@ package session
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"github.com/sumory/gotty/buffer"
 	"github.com/sumory/gotty/codec"
@@ -13,33 +12,35 @@ import (
 	"time"
 )
 
-//会话
+//GlobalSessionID session标识
+var GlobalSessionID uint64
+
+//Session 服务端与客户端间对话，对应一条物理连接
 type Session struct {
-	id         uint64
-	conn       *net.TCPConn //tcp的session
-	remoteAddr string
+	config *config.GottyConfig //配置
+
+	id         uint64 //id标识
+	conn       *net.TCPConn
+	remoteAddr string //远程地址
+	localAddr  string //本地地址
 
 	//消息传输
 	bReader      *bufio.Reader
 	bWriter      *bufio.Writer
-	ReadChannel  chan []byte //request的channel
-	WriteChannel chan []byte //response的channel
+	ReadChannel  chan []byte //传输请求体的channel
+	WriteChannel chan []byte //传输响应体的channel
 	inBuffer     *buffer.Buffer
 	outBuffer    *buffer.Buffer
 
 	isClose  bool
-	lastTime time.Time
-	config   *config.GottyConfig
-	attrs    map[string]interface{}
+	lastTime time.Time              //最后活跃时间
+	attrs    map[string]interface{} //其他属性数据
 
-	//编解码
-	codec codec.Codec
+	codec codec.Codec //编解码器
 }
 
-var GlobalSessionID uint64
-
+//NewSession 创建新的session对话
 func NewSession(conn *net.TCPConn, codec codec.Codec, config *config.GottyConfig) *Session {
-
 	conn.SetKeepAlive(true)
 	conn.SetKeepAlivePeriod(config.IdleTime * 2)
 	conn.SetNoDelay(true)
@@ -50,6 +51,7 @@ func NewSession(conn *net.TCPConn, codec codec.Codec, config *config.GottyConfig
 		id:         atomic.AddUint64(&GlobalSessionID, 1),
 		conn:       conn,
 		remoteAddr: conn.RemoteAddr().String(),
+		localAddr:  conn.LocalAddr().String(),
 
 		bReader:      bufio.NewReaderSize(conn, config.ReadBufSize),
 		bWriter:      bufio.NewWriterSize(conn, config.WriteBufSize),
@@ -66,101 +68,104 @@ func NewSession(conn *net.TCPConn, codec codec.Codec, config *config.GottyConfig
 	return session
 }
 
-func (self *Session) SetAttribute(name string, v interface{}) {
-	self.attrs[name] = v
+//Set 保存自定义的kv数据
+func (session *Session) Set(name string, v interface{}) {
+	session.attrs[name] = v
 }
 
-func (self *Session) GetAttribute(name string) interface{} {
-	return self.attrs[name]
+//Get 获取自定义的kv数据
+func (session *Session) Get(name string) interface{} {
+	return session.attrs[name]
 }
 
-func (self *Session) RemotingAddr() string {
-	return self.remoteAddr
+//RemoteAddr 获取连接的远程地址
+func (session *Session) RemoteAddr() string {
+	return session.remoteAddr
 }
 
-//空闲逻辑
-func (self *Session) Idle() bool {
-	return time.Now().After(self.lastTime.Add(self.config.IdleTime))
+//LocalAddr 获取连接的本地地址
+func (session *Session) LocalAddr() string {
+	return session.localAddr
 }
 
-//读取
-func (self *Session) ReadPacket() {
-	log.Info("读取包")
+//Idle 是否空闲
+func (session *Session) Idle() bool {
+	return time.Now().After(session.lastTime.Add(session.config.IdleTime))
+}
+
+//ReadPacket 读取
+func (session *Session) ReadPacket() {
 	defer func() {
 		if err := recover(); nil != err {
-			log.Info("session read packet panic recover failed, remoteAddr: %s, err: %s", self.remoteAddr, err)
+			log.Warn("session read packet failed, localAddr: %s, remoteAddr: %s, err: %s",
+				session.localAddr, session.remoteAddr, err)
 		}
 	}()
-	for !self.isClose {
-		//编解码接口调用
-		e := self.codec.ReadPacket(self.conn, self.inBuffer)
+	for !session.isClose {
+		e := session.codec.Read(session.conn, session.inBuffer)
 		if e != nil {
 			log.Error("read packet error, ", e)
-			self.Close()
+			session.Close()
 		}
 
-		tmpData := make([]byte, self.inBuffer.Length())
-
-		copy(self.inBuffer.Data[:], tmpData)
-		//写入缓冲
-		self.ReadChannel <- tmpData
+		tmpData := make([]byte, session.inBuffer.Length())
+		copy(tmpData, session.inBuffer.Data)
+		session.ReadChannel <- tmpData
 	}
 }
 
-//写入响应
-func (self *Session) WritePacket() {
+//WritePacket 从channel中取出包并写出
+func (session *Session) WritePacket() {
 	var p []byte
-	for !self.isClose {
-		p = <-self.WriteChannel
+	for !session.isClose {
+		p = <-session.WriteChannel
 		if nil != p {
-
-			log.Info("WritePacket 写出包")
-			e := self.codec.WritePacket(self.conn, self.outBuffer, p)
+			log.Debug("WritePacket写出包, %s", p)
+			e := session.codec.Write(session.conn, session.outBuffer, p)
 			if e != nil {
 				log.Error("写出包错误", e)
-			} else {
-				log.Info("写出包成功")
 			}
 
-			//self.write0(p)
-			self.lastTime = time.Now()
+			session.lastTime = time.Now()
 		} else {
-			log.Warn("the packet to write is nil")
+			log.Warn("the packet from WriteChannel is nil")
 		}
 	}
 }
 
 //写出数据
-func (self *Session) Write(d []byte) error {
+func (session *Session) Write(d []byte) error {
 	defer func() {
 		if err := recover(); nil != err {
-			log.Error("session write revoer faild: %s, %s", self.remoteAddr, err)
+			log.Warn("session write packet failed, localAddr: %s, remoteAddr: %s, err: %s",
+				session.localAddr, session.remoteAddr, err)
 		}
 	}()
 
-	if !self.isClose {
+	if !session.isClose {
 		select {
-		case self.WriteChannel <- d:
+		case session.WriteChannel <- d:
 			return nil
 		default:
-			return errors.New(fmt.Sprintf("write channel is full: %s", self.remoteAddr))
+			return fmt.Errorf("write channel is full: %s", session.remoteAddr)
 		}
 	}
-	return errors.New(fmt.Sprintf("session closed: %s", self.remoteAddr))
+	return fmt.Errorf("session closed: %s", session.remoteAddr)
 }
 
-//当前连接是否关闭
-func (self *Session) Closed() bool {
-	return self.isClose
+//Closed 当前连接是否关闭
+func (session *Session) Closed() bool {
+	return session.isClose
 }
 
-func (self *Session) Close() error {
-	if !self.isClose {
-		self.isClose = true
-		self.conn.Close()
-		close(self.WriteChannel)
-		close(self.ReadChannel)
-		log.Info("session close, remoteAddr: %s", self.remoteAddr)
+//Close 关闭当前对话：关闭连接、channel及其他善后处理
+func (session *Session) Close() error {
+	if !session.isClose {
+		session.isClose = true
+		session.conn.Close()
+		close(session.WriteChannel)
+		close(session.ReadChannel)
+		log.Info("session close, remoteAddr: %s", session.remoteAddr)
 	}
 	return nil
 }

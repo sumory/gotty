@@ -1,11 +1,9 @@
 package server
 
 import (
-	"github.com/sumory/gotty"
 	"github.com/sumory/gotty/client"
 	"github.com/sumory/gotty/codec"
 	"github.com/sumory/gotty/config"
-	"github.com/sumory/gotty/utils"
 	log "github.com/sumory/log4go"
 	"net"
 	"time"
@@ -17,9 +15,7 @@ type GottyServer struct {
 	stopChan   chan bool
 	isShutdown bool
 	config     *config.GottyConfig
-	context    *gotty.Context
 	handler    func(client *client.GottyClient, d []byte) //包处理函数
-
 	//编解码
 	codec codec.Codec
 }
@@ -33,17 +29,12 @@ func NewGottyServer( //
 	handler func(client *client.GottyClient, d []byte), //包处理函数
 	codec codec.Codec, //编解码器
 ) *GottyServer {
-	reqHolder := gotty.NewReqHolder(concurrent, maxOpaque)
-	timeWheel := utils.NewTimeWheel(1*time.Second, 6, 10)
-	context := gotty.NewContext(reqHolder, timeWheel)
-
 	server := &GottyServer{
 		addr:       addr,
 		keepalive:  keepalive,
 		stopChan:   make(chan bool, 1),
 		isShutdown: false,
 		config:     config,
-		context:    context,
 		handler:    handler, //包处理函数
 		codec:      codec,
 	}
@@ -77,7 +68,7 @@ func (self *GottyServer) serve(listener *StoppedListener) error {
 			continue
 		} else {
 			log.Info("listner accept new connection, server <--- %s", conn.RemoteAddr())
-			gottyClient := client.NewGottyClient(conn, self.codec, self.config, self.context, self.handler)
+			gottyClient := client.NewGottyClient(conn, self.codec, self.config, self.handler)
 			gottyClient.Start()
 		}
 	}
