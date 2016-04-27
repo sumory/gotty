@@ -35,7 +35,7 @@ func main() {
 	gottyConfig := config.NewDefaultGottyConfig()
 	var nBit uint8 = 4
 	conn, _ := dial("localhost:6789")
-	codec := codec.NewLengthBasedCodec(nBit, binary.BigEndian)
+	codec := codec.NewLengthBasedCodec(binary.BigEndian)
 	client := client.NewGottyClient(conn, codec, gottyConfig, handler)
 	client.Start()
 

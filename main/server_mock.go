@@ -31,7 +31,7 @@ func main() {
 	maxOpaque := 160000           // 最大id标识
 	concurrent := 8               // 缓冲器的并发因子
 
-	codec := codec.NewLengthBasedCodec(4, binary.BigEndian)
+	codec := codec.NewLengthBasedCodec(binary.BigEndian)
 	server := server.NewGottyServer(addr, keepalive, gottyConfig, maxOpaque, concurrent, packetDispatcher, codec)
 	err := server.ListenAndServe()
 	if err != nil {
