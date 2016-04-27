@@ -1,20 +1,18 @@
 package gotty
 
 import (
-	"github.com/sumory/gotty/utils"
 	"sync"
 	"sync/atomic"
 )
 
 type Context struct {
 	ReqHolder *ReqHolder
-	TimeWheel *utils.TimeWheel
 }
 
-func NewContext(reqHolder *ReqHolder, timeWheel *utils.TimeWheel) *Context {
+func NewContext(reqHolder *ReqHolder) *Context {
 	context := &Context{
 		ReqHolder: reqHolder,
-		TimeWheel: timeWheel}
+	}
 
 	return context
 }
