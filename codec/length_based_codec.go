@@ -3,7 +3,6 @@ package codec
 import (
 	"bufio"
 	"encoding/binary"
-	"fmt"
 	log "github.com/sumory/log4go"
 	"io"
 )
@@ -96,7 +95,7 @@ func (lbc *LengthBasedCodec) Write(bWriter *bufio.Writer, p *Packet) error {
 	log.Debug("write packet, length: %d, value: %v", len(pBytes), pBytes)
 
 	if err != nil {
-		log.Error("packet encode error, %s", err)
+		log.Warn("packet encode error, %s", err)
 		return err
 	}
 
