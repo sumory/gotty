@@ -15,7 +15,7 @@ type GottyServer struct {
 	stopChan   chan bool
 	isShutdown bool
 	config     *config.GottyConfig
-	handler    func(client *client.GottyClient, d []byte) //包处理函数
+	handler    func(client *client.GottyClient, p *codec.Packet) //包处理函数
 	//编解码
 	codec codec.Codec
 }
@@ -26,7 +26,7 @@ func NewGottyServer( //
 	config *config.GottyConfig, // 配置信息
 	maxOpaque int, // 最大id标识
 	concurrent int, //缓冲器的并发因子
-	handler func(client *client.GottyClient, d []byte), //包处理函数
+	handler func(client *client.GottyClient, p *codec.Packet), //包处理函数
 	codec codec.Codec, //编解码器
 ) *GottyServer {
 	server := &GottyServer{

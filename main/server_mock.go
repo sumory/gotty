@@ -11,9 +11,9 @@ import (
 	"time"
 )
 
-func packetDispatcher(c *client.GottyClient, d []byte) {
-	log.Debug("server dispatch packet------->: %s", d)
-	c.Write(d)
+func packetDispatcher(c *client.GottyClient, p *codec.Packet) {
+	log.Debug("server dispatch packet------->: %v", p)
+	c.Write(p)
 }
 
 func main() {
@@ -31,7 +31,7 @@ func main() {
 	maxOpaque := 160000           // 最大id标识
 	concurrent := 8               // 缓冲器的并发因子
 
-	codec := codec.NewLengthBasedCodec(binary.BigEndian)
+	codec := codec.NewLengthBasedCodec(binary.BigEndian, 64*1024, nil, nil)
 	server := server.NewGottyServer(addr, keepalive, gottyConfig, maxOpaque, concurrent, packetDispatcher, codec)
 	err := server.ListenAndServe()
 	if err != nil {

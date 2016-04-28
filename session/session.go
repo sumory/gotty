@@ -27,8 +27,8 @@ type Session struct {
 	//消息传输
 	bReader      *bufio.Reader
 	bWriter      *bufio.Writer
-	ReadChannel  chan []byte //传输请求体的channel
-	WriteChannel chan []byte //传输响应体的channel
+	ReadChannel  chan *codec.Packet //传输请求体的channel
+	WriteChannel chan *codec.Packet //传输响应体的channel
 	inBuffer     *buffer.Buffer
 	outBuffer    *buffer.Buffer
 
@@ -40,7 +40,7 @@ type Session struct {
 }
 
 //NewSession 创建新的session对话
-func NewSession(conn *net.TCPConn, codec codec.Codec, config *config.GottyConfig) *Session {
+func NewSession(conn *net.TCPConn, sessionCodec codec.Codec, config *config.GottyConfig) *Session {
 	conn.SetKeepAlive(true)
 	conn.SetKeepAlivePeriod(config.IdleTime * 2)
 	conn.SetNoDelay(true)
@@ -55,15 +55,15 @@ func NewSession(conn *net.TCPConn, codec codec.Codec, config *config.GottyConfig
 
 		bReader:      bufio.NewReaderSize(conn, config.ReadBufSize),
 		bWriter:      bufio.NewWriterSize(conn, config.WriteBufSize),
-		ReadChannel:  make(chan []byte, config.ReadChanSize),
-		WriteChannel: make(chan []byte, config.WriteChanSize),
+		ReadChannel:  make(chan *codec.Packet, config.ReadChanSize),
+		WriteChannel: make(chan *codec.Packet, config.WriteChanSize),
 		inBuffer:     buffer.NewBuffer(0, 1024),
 		outBuffer:    buffer.NewBuffer(0, 1024),
 
 		isClose: false,
 		config:  config,
 
-		codec: codec,
+		codec: sessionCodec,
 	}
 	return session
 }
@@ -102,28 +102,26 @@ func (session *Session) ReadPacket() {
 		}
 	}()
 	for !session.isClose {
-		e := session.codec.Read(session.conn, session.inBuffer)
-		if e != nil {
-			log.Error("read packet error, ", e)
+		packet, err := session.codec.Read(session.bReader)
+		if err != nil {
+			log.Error("read packet error, ", err)
 			session.Close()
 		}
 
-		tmpData := make([]byte, session.inBuffer.Length())
-		copy(tmpData, session.inBuffer.Data)
-		session.ReadChannel <- tmpData
+		session.ReadChannel <- packet
 	}
 }
 
 //WritePacket 从channel中取出包并写出
 func (session *Session) WritePacket() {
-	var p []byte
+	var p *codec.Packet
 	for !session.isClose {
 		p = <-session.WriteChannel
 		if nil != p {
-			log.Debug("WritePacket写出包, %s", p)
-			e := session.codec.Write(session.conn, session.outBuffer, p)
-			if e != nil {
-				log.Error("写出包错误", e)
+			log.Debug("WritePacket写出包, %v", p)
+			err := session.codec.Write(session.bWriter, p)
+			if err != nil {
+				log.Error("写出包错误", err)
 			}
 
 			session.lastTime = time.Now()
@@ -134,7 +132,7 @@ func (session *Session) WritePacket() {
 }
 
 //写出数据
-func (session *Session) Write(d []byte) error {
+func (session *Session) Write(p *codec.Packet) error {
 	defer func() {
 		if err := recover(); nil != err {
 			log.Warn("session write packet failed, localAddr: %s, remoteAddr: %s, err: %s",
@@ -143,8 +141,10 @@ func (session *Session) Write(d []byte) error {
 	}()
 
 	if !session.isClose {
+		log.Debug("client write packet: %+v", p)
+
 		select {
-		case session.WriteChannel <- d:
+		case session.WriteChannel <- p:
 			return nil
 		default:
 			return fmt.Errorf("write channel is full: %s", session.remoteAddr)

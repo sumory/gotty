@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/binary"
-	"fmt"
 	"github.com/sumory/gotty/client"
 	"github.com/sumory/gotty/codec"
 	"github.com/sumory/gotty/config"
@@ -11,8 +10,8 @@ import (
 	"time"
 )
 
-func handler(c *client.GottyClient, resp []byte) {
-	log.Info("客户端收到包, %s", string(resp))
+func handler(c *client.GottyClient, p *codec.Packet) {
+	log.Info("客户端收到包, %v", p)
 }
 
 func dial(hostport string) (*net.TCPConn, error) {
@@ -33,10 +32,9 @@ func dial(hostport string) (*net.TCPConn, error) {
 
 func main() {
 	gottyConfig := config.NewDefaultGottyConfig()
-	var nBit uint8 = 4
 	conn, _ := dial("localhost:6789")
-	codec := codec.NewLengthBasedCodec(binary.BigEndian)
-	client := client.NewGottyClient(conn, codec, gottyConfig, handler)
+	lengthBasedCodec := codec.NewLengthBasedCodec(binary.BigEndian, 64*1024, nil, nil)
+	client := client.NewGottyClient(conn, lengthBasedCodec, gottyConfig, handler)
 	client.Start()
 
 	ch := make(chan int, 20)
@@ -44,15 +42,31 @@ func main() {
 		ch <- 1
 		time.Sleep(1 * time.Second)
 		go func() {
-			body := []byte(fmt.Sprintf("ping --> %d", time.Now().UnixNano()/1000000))
-			p := make([]byte, int(nBit*2)+len(body))
-			//写总长
-			binary.BigEndian.PutUint64(p[0:], uint64(int(nBit*2)+len(body)))
-			binary.BigEndian.PutUint64(p[4:], uint64(0))
-			copy(p[nBit*2:], body)
+			header := &codec.PacketHeader{
+				Sequence:  123,
+				Operation: 1,
+				Version:   0,
+				Extra:     []byte("this is header extra"),
+			}
+			body := &codec.PacketBody{
+				Data: []byte("this is body"),
+			}
+			meta := &codec.PacketMeta{
+				TotalLen:  uint32(8 + header.Len() + body.Len()),
+				HeaderLen: uint32(header.Len()),
+			}
+
+			p := &codec.Packet{
+				Meta:   meta,
+				Header: header,
+				Body:   body,
+			}
+
+			log.Info("Client will write, totalLen: %d  headerLen: %d", p.Meta.TotalLen, p.Meta.HeaderLen)
+
 			err := client.Write(p)
 			if nil != err {
-				log.Error("wait response failed: ", err)
+				log.Error("Client write failed: ", err)
 			} else {
 			}
 			<-ch
