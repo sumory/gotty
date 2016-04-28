@@ -35,8 +35,6 @@ func (lbc *LengthBasedCodec) Read(bReader *bufio.Reader) (*Packet, error) {
 	}
 
 	tLen := lbc.byteOrder.Uint32(totalLen) //包总长度
-
-	fmt.Printf("tLen: %d \n", tLen)
 	if lbc.maxSize > 0 && int(tLen) > lbc.maxSize {
 		return nil, PacketTooLargeError
 	}
@@ -62,14 +60,15 @@ func (lbc *LengthBasedCodec) Read(bReader *bufio.Reader) (*Packet, error) {
 	tmp := headerAndBody
 	hasRead := 0
 	for {
+		log.Debug("read packget headerAndBody, hasRead: %d", hasRead)
 		onceRead, err := bReader.Read(tmp)
 		if err != nil {
 			return nil, err
 		}
 		hasRead += onceRead
-
+		log.Debug("read packget headerAndBody, hasRead: %d  onceRead: %d", hasRead, onceRead)
 		if hasRead < int(headerAndBodyLen) {
-			tmp = tmp[hasRead:]
+			tmp = headerAndBody[hasRead:]
 			continue
 		} else {
 			break
@@ -82,7 +81,8 @@ func (lbc *LengthBasedCodec) Read(bReader *bufio.Reader) (*Packet, error) {
 		return nil, err
 	}
 
-	log.Debug("read packet data, totallen: %d, headerLen: %d, headerAndBody: %v", tLen, hLen, headerAndBody)
+	log.Debug("read packet data, totallen: %d, headerLen: %d, headerAndBody: %v， packet.Header.Extra:%v",
+		tLen, hLen, headerAndBody, packet.Header.Extra)
 	return packet, nil
 }
 
@@ -101,6 +101,7 @@ func (lbc *LengthBasedCodec) Write(bWriter *bufio.Writer, p *Packet) error {
 	}
 
 	tmp := pBytes
+	pBytesLen := len(pBytes)
 	hasWrite := 0
 	for {
 		log.Debug("write packget, hasWrite: %d", hasWrite)
@@ -116,8 +117,8 @@ func (lbc *LengthBasedCodec) Write(bWriter *bufio.Writer, p *Packet) error {
 		}
 		hasWrite += onceWrite
 		log.Debug("write packget, hasWrite: %d  onceWrite: %d", hasWrite, onceWrite)
-		if hasWrite < int(p.Meta.TotalLen) {
-			tmp = tmp[hasWrite:]
+		if hasWrite < pBytesLen {
+			tmp = pBytes[hasWrite:]
 			continue
 		} else {
 			break

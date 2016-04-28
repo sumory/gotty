@@ -3,7 +3,6 @@ package session
 import (
 	"bufio"
 	"fmt"
-	"github.com/sumory/gotty/buffer"
 	"github.com/sumory/gotty/codec"
 	"github.com/sumory/gotty/config"
 	log "github.com/sumory/log4go"
@@ -29,8 +28,6 @@ type Session struct {
 	bWriter      *bufio.Writer
 	ReadChannel  chan *codec.Packet //传输请求体的channel
 	WriteChannel chan *codec.Packet //传输响应体的channel
-	inBuffer     *buffer.Buffer
-	outBuffer    *buffer.Buffer
 
 	isClose  bool
 	lastTime time.Time              //最后活跃时间
@@ -57,8 +54,6 @@ func NewSession(conn *net.TCPConn, sessionCodec codec.Codec, config *config.Gott
 		bWriter:      bufio.NewWriterSize(conn, config.WriteBufSize),
 		ReadChannel:  make(chan *codec.Packet, config.ReadChanSize),
 		WriteChannel: make(chan *codec.Packet, config.WriteChanSize),
-		inBuffer:     buffer.NewBuffer(0, 1024),
-		outBuffer:    buffer.NewBuffer(0, 1024),
 
 		isClose: false,
 		config:  config,
@@ -118,7 +113,7 @@ func (session *Session) WritePacket() {
 	for !session.isClose {
 		p = <-session.WriteChannel
 		if nil != p {
-			log.Debug("WritePacket写出包, %v", p)
+			log.Debug("WritePacket写出包, Header.Extra:%v  Body:%v", p.Header.Extra, p.Body.Data)
 			err := session.codec.Write(session.bWriter, p)
 			if err != nil {
 				log.Error("写出包错误", err)
@@ -141,7 +136,7 @@ func (session *Session) Write(p *codec.Packet) error {
 	}()
 
 	if !session.isClose {
-		log.Debug("client write packet: %+v", p)
+		log.Debug("client write packet: %+v", p.Body.Data)
 
 		select {
 		case session.WriteChannel <- p:

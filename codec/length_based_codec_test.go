@@ -6,8 +6,7 @@ import (
 )
 
 func TestCodec(t *testing.T) {
-	convey.Convey("Testing codec, Person <-> Packet <-> bytes <-> Packet <-> Person", t, func() {
-
+	convey.Convey("Testing length based codec", t, func() {
 		convey.So(1, convey.ShouldEqual, 1)
 
 	})

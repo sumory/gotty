@@ -11,7 +11,8 @@ import (
 )
 
 func handler(c *client.GottyClient, p *codec.Packet) {
-	log.Info("客户端收到包, %v", p)
+	log.Info("客户端收到包, TotalLen:%d HeaderLen:%d Header[Seq:%d Op:%d Ver:%d Extra:%s] Body:%s",
+		p.Meta.TotalLen, p.Meta.HeaderLen, p.Header.Sequence, p.Header.Operation, p.Header.Version, string(p.Header.Extra), string(p.Body.Data))
 }
 
 func dial(hostport string) (*net.TCPConn, error) {
@@ -38,18 +39,20 @@ func main() {
 	client.Start()
 
 	ch := make(chan int, 20)
+	sequence := uint32(0)
 	for {
 		ch <- 1
 		time.Sleep(1 * time.Second)
+		sequence++
 		go func() {
 			header := &codec.PacketHeader{
-				Sequence:  123,
+				Sequence:  sequence,
 				Operation: 1,
 				Version:   0,
-				Extra:     []byte("this is header extra"),
+				Extra:     []byte("头部扩展信息header extra"),
 			}
 			body := &codec.PacketBody{
-				Data: []byte("this is body"),
+				Data: []byte("包体body"),
 			}
 			meta := &codec.PacketMeta{
 				TotalLen:  uint32(8 + header.Len() + body.Len()),

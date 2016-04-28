@@ -24,8 +24,6 @@ func NewGottyServer( //
 	addr string, // 服务地址
 	keepalive time.Duration, // keepalive时间，秒
 	config *config.GottyConfig, // 配置信息
-	maxOpaque int, // 最大id标识
-	concurrent int, //缓冲器的并发因子
 	handler func(client *client.GottyClient, p *codec.Packet), //包处理函数
 	codec codec.Codec, //编解码器
 ) *GottyServer {

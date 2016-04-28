@@ -3,6 +3,7 @@ package codec
 import (
 	"encoding/binary"
 	"github.com/sumory/gotty/buffer"
+	log "github.com/sumory/log4go"
 )
 
 const (
@@ -85,19 +86,19 @@ func (packet *Packet) Decode(bo binary.ByteOrder, totalLen, headerLen uint32, he
 		HeaderLen: headerLen,
 	}
 	header := &PacketHeader{
-		Extra: make([]byte, 0),
+		Extra: make([]byte, headerLen-packetMinHeaderLen),
 	}
 	header.Sequence = bo.Uint32(headerAndBody[0:4])
 	header.Operation = bo.Uint16(headerAndBody[4:6])
 	header.Version = bo.Uint16(headerAndBody[6:8])
 	if headerLen > packetMinHeaderLen { //存在附加属性
-		copy(headerAndBody[8:], header.Extra[:])
+		copy(header.Extra[:], headerAndBody[8:])
 	}
 	body := &PacketBody{
-		Data: make([]byte, 0),
+		Data: make([]byte, totalLen-headerLen-packetMetaLen),
 	}
 	if totalLen-packetMetaLen > headerLen { //存在包体
-		copy(headerAndBody[headerLen:], body.Data[:])
+		copy(body.Data[:], headerAndBody[headerLen:])
 	}
 	packet.Meta = meta
 	packet.Header = header
@@ -125,6 +126,8 @@ func (packet *Packet) Encode(bo binary.ByteOrder) ([]byte, error) {
 		bf.WriteUint16LE(packet.Header.Version)
 	}
 
+	log.Debug("packet.Encode, packet.len: %d  Header.Extra.len: %d  Body.Data.len: %d",
+		packet.Meta.TotalLen, len(packet.Header.Extra), len(packet.Body.Data))
 	//写header extra
 	bf.Write(packet.Header.Extra)
 	//写body
