@@ -5,12 +5,13 @@ import (
 	"github.com/sumory/gotty/client"
 	"github.com/sumory/gotty/codec"
 	"github.com/sumory/gotty/config"
+	"github.com/sumory/gotty/session"
 	log "github.com/sumory/log4go"
 	"net"
 	"time"
 )
 
-func handler(c *client.GottyClient, p *codec.Packet) {
+func handler(c *session.Session, p *codec.Packet) {
 	log.Info("客户端收到包, TotalLen:%d HeaderLen:%d Header[Seq:%d Op:%d Ver:%d Extra:%s] Body:%s",
 		p.Meta.TotalLen, p.Meta.HeaderLen, p.Header.Sequence, p.Header.Operation, p.Header.Version, string(p.Header.Extra), string(p.Body.Data))
 }

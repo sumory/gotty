@@ -1,4 +1,5 @@
-//most is from https://github.com/funny/link/blob/master/buffer.go
+//see https://github.com/funny/link/blob/master/buffer.go
+//modified by sumory.wu
 
 package buffer
 
@@ -8,7 +9,6 @@ import (
 	"io"
 	"math"
 	"unicode/utf8"
-	"fmt"
 )
 
 type Buffer struct {
@@ -36,7 +36,7 @@ func (b *Buffer) Reset(size, capacity int) {
 }
 
 func (b *Buffer) free() {
-	fmt.Println("buffer free...")
+	//fmt.Println("buffer free...")
 	//TODO:连接池后续处理
 }
 
@@ -219,10 +219,8 @@ func (b *Buffer) ReadAt(p []byte, off int64) (int, error) {
 }
 
 func (b *Buffer) ReadSlice(start int, step int) []byte {
-	return b.Data[start:start+step]
+	return b.Data[start : start+step]
 }
-
-
 
 // io.RuneReader
 func (b *Buffer) ReadRune() (rune, int, error) {

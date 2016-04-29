@@ -33,11 +33,12 @@ type Session struct {
 	lastTime time.Time              //最后活跃时间
 	attrs    map[string]interface{} //其他属性数据
 
-	codec codec.Codec //编解码器
+	codec   codec.Codec                             //编解码器
+	handler func(session *Session, p *codec.Packet) //包处理函数
 }
 
 //NewSession 创建新的session对话
-func NewSession(conn *net.TCPConn, sessionCodec codec.Codec, config *config.GottyConfig) *Session {
+func NewSession(conn *net.TCPConn, sessionCodec codec.Codec, config *config.GottyConfig, handler func(session *Session, p *codec.Packet)) *Session {
 	conn.SetKeepAlive(true)
 	conn.SetKeepAlivePeriod(config.IdleTime * 2)
 	conn.SetNoDelay(true)
@@ -58,7 +59,8 @@ func NewSession(conn *net.TCPConn, sessionCodec codec.Codec, config *config.Gott
 		isClose: false,
 		config:  config,
 
-		codec: sessionCodec,
+		codec:   sessionCodec,
+		handler: handler,
 	}
 	return session
 }
@@ -124,6 +126,41 @@ func (session *Session) WritePacket() {
 			log.Warn("the packet from WriteChannel is nil")
 		}
 	}
+}
+
+//dispatchPacket 包分发
+func (session *Session) dispatchPacket() {
+	//解析
+	for !session.Closed() {
+		p := <-session.ReadChannel
+		if nil == p {
+			continue
+		}
+
+		//模拟queue/pool
+		session.config.DispatcherQueueSize <- 1
+		go func() {
+			defer func() {
+				<-session.config.DispatcherQueueSize
+			}()
+
+			session.handler(session, p)
+		}()
+	}
+}
+
+//Start 开启session，开始收发包
+func (session *Session) Start() {
+	go session.WritePacket()
+	go session.dispatchPacket()
+	go session.ReadPacket()
+
+	laddr := session.conn.LocalAddr().(*net.TCPAddr)
+	raddr := session.conn.RemoteAddr().(*net.TCPAddr)
+	session.localAddr = fmt.Sprintf("%s:%d", laddr.IP, laddr.Port)
+	session.remoteAddr = fmt.Sprintf("%s:%d", raddr.IP, raddr.Port)
+
+	log.Info("session start: %s <-> %s", session.localAddr, session.remoteAddr)
 }
 
 //写出数据
