@@ -14,6 +14,8 @@ import (
 //GlobalSessionID session标识
 var GlobalSessionID uint64
 
+type handlerFunc func(session *Session, p *codec.Packet)
+
 //Session 服务端与客户端间对话，对应一条物理连接
 type Session struct {
 	config *config.GottyConfig //配置
@@ -33,12 +35,12 @@ type Session struct {
 	lastTime time.Time              //最后活跃时间
 	attrs    map[string]interface{} //其他属性数据
 
-	codec   codec.Codec                             //编解码器
-	handler func(session *Session, p *codec.Packet) //包处理函数
+	codec   codec.Codec //编解码器
+	handler handlerFunc //包处理函数
 }
 
 //NewSession 创建新的session对话
-func NewSession(conn *net.TCPConn, sessionCodec codec.Codec, config *config.GottyConfig, handler func(session *Session, p *codec.Packet)) *Session {
+func NewSession(conn *net.TCPConn, sessionCodec codec.Codec, config *config.GottyConfig, handler handlerFunc) *Session {
 	conn.SetKeepAlive(true)
 	conn.SetKeepAlivePeriod(config.IdleTime * 2)
 	conn.SetNoDelay(true)

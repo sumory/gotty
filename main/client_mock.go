@@ -17,7 +17,6 @@ func handler(c *session.Session, p *codec.Packet) {
 }
 
 func dial(hostport string) (*net.TCPConn, error) {
-	//连接
 	remoteAddr, err := net.ResolveTCPAddr("tcp4", hostport)
 	if nil != err {
 		log.Error("ResolveTCPAddr err:", err)

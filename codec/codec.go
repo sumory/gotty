@@ -15,6 +15,7 @@ type Decoder interface {
 
 //编解码器接口
 type Codec interface {
+	Name() string
 	Read(bReader *bufio.Reader) (*Packet, error)
 	Write(bWriter *bufio.Writer, p *Packet) error
 	//编码, 实体 -> 数据包

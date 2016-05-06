@@ -9,6 +9,7 @@ import (
 
 //LengthBasedCodec 定长编解码器
 type LengthBasedCodec struct {
+	name      string           //名称
 	byteOrder binary.ByteOrder //大小端
 	maxSize   int              //包最大长度
 	encoder   Encoder
@@ -18,11 +19,16 @@ type LengthBasedCodec struct {
 //NewLengthBasedCodec 新建定长编解码器
 func NewLengthBasedCodec(byteOrder binary.ByteOrder, maxSize int, encoder Encoder, decoder Decoder) *LengthBasedCodec {
 	return &LengthBasedCodec{
+		name:      "length based codec",
 		byteOrder: byteOrder,
 		maxSize:   maxSize,
 		encoder:   encoder,
 		decoder:   decoder,
 	}
+}
+
+func (lbc *LengthBasedCodec) Name() string {
+	return lbc.name
 }
 
 //Read 从连接中读取packet
