@@ -3,6 +3,7 @@ package codec
 import (
 	"bufio"
 	"encoding/binary"
+	"fmt"
 	log "github.com/sumory/log4go"
 	"io"
 )
@@ -32,7 +33,7 @@ func (lbc *LengthBasedCodec) Name() string {
 }
 
 //Read 从连接中读取packet
-func (lbc *LengthBasedCodec) Read(bReader *bufio.Reader) (*Packet, error) {
+func (lbc *LengthBasedCodec) Read(bReader *bufio.Reader) (Packet, error) {
 	//读包总大小
 	totalLen := make([]byte, packetBytesLen, packetBytesLen)
 	if _, err := io.ReadFull(bReader, totalLen); err != nil {
@@ -81,7 +82,7 @@ func (lbc *LengthBasedCodec) Read(bReader *bufio.Reader) (*Packet, error) {
 	}
 
 	//组装packet
-	packet := &Packet{}
+	packet := LengthBasedPacket{}
 	if err := packet.Decode(lbc.byteOrder, tLen, hLen, headerAndBody); err != nil {
 		return nil, err
 	}
@@ -92,7 +93,11 @@ func (lbc *LengthBasedCodec) Read(bReader *bufio.Reader) (*Packet, error) {
 }
 
 //Write 将包写出
-func (lbc *LengthBasedCodec) Write(bWriter *bufio.Writer, p *Packet) error {
+func (lbc *LengthBasedCodec) Write(bWriter *bufio.Writer, lbp Packet) error {
+	p, ok := lbp.(LengthBasedPacket)
+	if !ok {
+		return fmt.Errorf("packet is not length based")
+	}
 	if lbc.maxSize > 0 && int(p.Meta.TotalLen) > lbc.maxSize {
 		return PacketTooLargeError
 	}
@@ -135,11 +140,11 @@ func (lbc *LengthBasedCodec) Write(bWriter *bufio.Writer, p *Packet) error {
 }
 
 //Marshal 将业务实体转为packet
-func (lbc *LengthBasedCodec) Marshal(m interface{}) (*Packet, error) {
+func (lbc *LengthBasedCodec) Marshal(m Message) (Packet, error) {
 	return lbc.decoder.Decode(m)
 }
 
 //Unmarshal 将包转为业务实体
-func (lbc *LengthBasedCodec) Unmarshal(p *Packet) (interface{}, error) {
+func (lbc *LengthBasedCodec) Unmarshal(p Packet) (Message, error) {
 	return lbc.encoder.Encode(p)
 }

@@ -14,7 +14,7 @@ import (
 //GlobalSessionID session标识
 var GlobalSessionID uint64
 
-type handlerFunc func(session *Session, p *codec.Packet)
+type handlerFunc func(session *Session, p codec.Packet)
 
 //Session 服务端与客户端间对话，对应一条物理连接
 type Session struct {
@@ -28,8 +28,8 @@ type Session struct {
 	//消息传输
 	bReader      *bufio.Reader
 	bWriter      *bufio.Writer
-	ReadChannel  chan *codec.Packet //传输请求体的channel
-	WriteChannel chan *codec.Packet //传输响应体的channel
+	ReadChannel  chan codec.Packet //传输请求体的channel
+	WriteChannel chan codec.Packet //传输响应体的channel
 
 	isClose  bool
 	lastTime time.Time              //最后活跃时间
@@ -55,8 +55,8 @@ func NewSession(conn *net.TCPConn, sessionCodec codec.Codec, config *config.Gott
 
 		bReader:      bufio.NewReaderSize(conn, config.ReadBufSize),
 		bWriter:      bufio.NewWriterSize(conn, config.WriteBufSize),
-		ReadChannel:  make(chan *codec.Packet, config.ReadChanSize),
-		WriteChannel: make(chan *codec.Packet, config.WriteChanSize),
+		ReadChannel:  make(chan codec.Packet, config.ReadChanSize),
+		WriteChannel: make(chan codec.Packet, config.WriteChanSize),
 
 		isClose: false,
 		config:  config,
@@ -113,7 +113,7 @@ func (session *Session) ReadPacket() {
 
 //WritePacket 从channel中取出包并写出
 func (session *Session) WritePacket() {
-	var p *codec.Packet
+	var p codec.Packet
 	for !session.isClose {
 		p = <-session.WriteChannel
 		if nil != p {
@@ -151,6 +151,65 @@ func (session *Session) dispatchPacket() {
 	}
 }
 
+//ReadMessage 读取
+func (session *Session) ReadMessage() {
+	defer func() {
+		if err := recover(); nil != err {
+			log.Warn("session read packet failed, localAddr: %s, remoteAddr: %s, err: %s",
+				session.localAddr, session.remoteAddr, err)
+		}
+	}()
+	for !session.isClose {
+		packet, err := session.codec.Read(session.bReader)
+		if err != nil {
+			log.Error("read packet error, ", err)
+			session.Close()
+		}
+
+		session.ReadChannel <- packet
+	}
+}
+
+//WriteMessage 从channel中取出包并写出
+func (session *Session) WriteMessage() {
+	var p codec.Packet
+	for !session.isClose {
+		p = <-session.WriteChannel
+		if nil != p {
+			log.Debug("WritePacket写出包, Header.Extra:%v  Body:%v", p.Header.Extra, p.Body.Data)
+			err := session.codec.Write(session.bWriter, p)
+			if err != nil {
+				log.Error("写出包错误", err)
+			}
+
+			session.lastTime = time.Now()
+		} else {
+			log.Warn("the packet from WriteChannel is nil")
+		}
+	}
+}
+
+//dispatchMessage 包分发
+func (session *Session) dispatchMessage() {
+	//解析
+	for !session.Closed() {
+		p := <-session.ReadChannel
+		if nil == p {
+			continue
+		}
+
+		//模拟queue/pool
+		session.config.DispatcherQueueSize <- 1
+		go func() {
+			defer func() {
+				<-session.config.DispatcherQueueSize
+			}()
+
+			session.handler(session, p)
+		}()
+	}
+}
+
 //Start 开启session，开始收发包
 func (session *Session) Start() {
 	go session.WritePacket()
@@ -166,7 +225,7 @@ func (session *Session) Start() {
 }
 
 //写出数据
-func (session *Session) Write(p *codec.Packet) error {
+func (session *Session) Write(p codec.Packet) error {
 	defer func() {
 		if err := recover(); nil != err {
 			log.Warn("session write packet failed, localAddr: %s, remoteAddr: %s, err: %s",
