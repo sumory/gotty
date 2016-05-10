@@ -64,7 +64,6 @@ func Test_Message(t *testing.T) {
 	})
 
 	convey.Convey("Test Packet message", t, func() {
-
 		header := &LengthBasedPacketHeader{
 			Sequence:  1,
 			Operation: 1,
@@ -100,5 +99,35 @@ func Test_Message(t *testing.T) {
 		convey.So(newPacket.Header.Sequence, convey.ShouldEqual, p.Header.Sequence)
 		convey.So(bytes.Equal(newPacket.Header.Extra, p.Header.Extra), convey.ShouldEqual, true)
 		convey.So(bytes.Equal(newPacket.Body.Data, p.Body.Data), convey.ShouldEqual, true)
+	})
+
+	convey.Convey("Test Transform Packet To Message", t, func() {
+		header := &LengthBasedPacketHeader{
+			Sequence:  1,
+			Operation: 1,
+			Version:   0,
+			Extra:     []byte("头部扩展信息header extra"),
+		}
+		body := &LengthBasedPacketBody{
+			Data: []byte("包体body"),
+		}
+		meta := &LengthBasedPacketMeta{
+			TotalLen:  uint32(8 + header.Len() + body.Len()),
+			HeaderLen: uint32(header.Len()),
+		}
+
+		p := LengthBasedPacket{
+			Meta:   meta,
+			Header: header,
+			Body:   body,
+		}
+
+		sm := NewEmptySimpleMessage()
+		err := sm.FromPacket(p)
+		convey.So(err, convey.ShouldBeNil)
+
+		convey.So(sm.getMsg(), convey.ShouldEqual, string(p.Body.Data))
+		convey.So(sm.getId(), convey.ShouldEqual, p.Header.Sequence)
+
 	})
 }
