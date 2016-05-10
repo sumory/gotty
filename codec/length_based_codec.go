@@ -145,6 +145,6 @@ func (lbc *LengthBasedCodec) Marshal(m Message) (Packet, error) {
 }
 
 //Unmarshal 将包转为业务实体
-func (lbc *LengthBasedCodec) Unmarshal(p Packet) (Message, error) {
-	return lbc.encoder.Encode(p)
+func (lbc *LengthBasedCodec) Unmarshal(p Packet, m Message) error {
+	return p.Transform(m)
 }

@@ -21,5 +21,5 @@ type Codec interface {
 	//编码, 实体 -> 数据包
 	Marshal(m Message) (Packet, error)
 	//解码，数据包 -> 实体
-	Unmarshal(p Packet) (Message, error)
+	Unmarshal(p Packet, m Message) error
 }
