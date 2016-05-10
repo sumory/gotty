@@ -11,9 +11,10 @@ import (
 	"time"
 )
 
-func handler(c *session.Session, p *codec.Packet) {
+func handler(c *session.Session, p codec.Packet) {
+	lbp, _ := p.(codec.LengthBasedPacket)
 	log.Info("客户端收到包, TotalLen:%d HeaderLen:%d Header[Seq:%d Op:%d Ver:%d Extra:%s] Body:%s",
-		p.Meta.TotalLen, p.Meta.HeaderLen, p.Header.Sequence, p.Header.Operation, p.Header.Version, string(p.Header.Extra), string(p.Body.Data))
+		lbp.Meta.TotalLen, lbp.Meta.HeaderLen, lbp.Header.Sequence, lbp.Header.Operation, lbp.Header.Version, string(lbp.Header.Extra), string(lbp.Body.Data))
 }
 
 func dial(hostport string) (*net.TCPConn, error) {
@@ -45,21 +46,21 @@ func main() {
 		time.Sleep(1 * time.Second)
 		sequence++
 		go func() {
-			header := &codec.PacketHeader{
+			header := &codec.LengthBasedPacketHeader{
 				Sequence:  sequence,
 				Operation: 1,
 				Version:   0,
 				Extra:     []byte("头部扩展信息header extra"),
 			}
-			body := &codec.PacketBody{
+			body := &codec.LengthBasedPacketBody{
 				Data: []byte("包体body"),
 			}
-			meta := &codec.PacketMeta{
+			meta := &codec.LengthBasedPacketMeta{
 				TotalLen:  uint32(8 + header.Len() + body.Len()),
 				HeaderLen: uint32(header.Len()),
 			}
 
-			p := &codec.Packet{
+			p := &codec.LengthBasedPacket{
 				Meta:   meta,
 				Header: header,
 				Body:   body,

@@ -11,11 +11,12 @@ import (
 	"time"
 )
 
-func packetDispatcher(c *session.Session, p *codec.Packet) {
+func packetDispatcher(c *session.Session, p codec.Packet) {
+	lbp, _ := p.(codec.LengthBasedPacket)
 	log.Info("服务端收到包, TotalLen:%d HeaderLen:%d Header[Seq:%d Op:%d Ver:%d Extra:%s] Body:%s",
-		p.Meta.TotalLen, p.Meta.HeaderLen, p.Header.Sequence, p.Header.Operation, p.Header.Version, string(p.Header.Extra), string(p.Body.Data))
-	p.Header.Sequence++
-	c.Write(p)
+		lbp.Meta.TotalLen, lbp.Meta.HeaderLen, lbp.Header.Sequence, lbp.Header.Operation, lbp.Header.Version, string(lbp.Header.Extra), string(lbp.Body.Data))
+	lbp.Header.Sequence++
+	c.Write(lbp)
 }
 
 func main() {

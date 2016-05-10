@@ -17,13 +17,13 @@ type GottyClient struct {
 	heartbeat  int64
 	session    *session.Session
 	config     *config.GottyConfig
-	handler    func(session *session.Session, p *codec.Packet) //包处理函数
+	handler    func(session *session.Session, p codec.Packet) //包处理函数
 }
 
 func NewGottyClient(conn *net.TCPConn, //
 	codec codec.Codec,
 	config *config.GottyConfig, //
-	handler func(session *session.Session, p *codec.Packet), //
+	handler func(session *session.Session, p codec.Packet), //
 ) *GottyClient {
 
 	session := session.NewSession(conn, codec, config, handler)
@@ -87,7 +87,7 @@ func (client *GottyClient) dispatchPacket() {
 	}
 }
 
-func (client *GottyClient) Write(p *codec.Packet) error {
+func (client *GottyClient) Write(p codec.Packet) error {
 	return client.session.Write(p)
 }
 

@@ -117,7 +117,6 @@ func (session *Session) WritePacket() {
 	for !session.isClose {
 		p = <-session.WriteChannel
 		if nil != p {
-			log.Debug("WritePacket写出包, Header.Extra:%v  Body:%v", p.Header.Extra, p.Body.Data)
 			err := session.codec.Write(session.bWriter, p)
 			if err != nil {
 				log.Error("写出包错误", err)
@@ -176,10 +175,9 @@ func (session *Session) WriteMessage() {
 	for !session.isClose {
 		p = <-session.WriteChannel
 		if nil != p {
-			log.Debug("WritePacket写出包, Header.Extra:%v  Body:%v", p.Header.Extra, p.Body.Data)
 			err := session.codec.Write(session.bWriter, p)
 			if err != nil {
-				log.Error("写出包错误", err)
+				log.Error("codec write error", err)
 			}
 
 			session.lastTime = time.Now()
@@ -234,8 +232,6 @@ func (session *Session) Write(p codec.Packet) error {
 	}()
 
 	if !session.isClose {
-		log.Debug("client write packet: %+v", p.Body.Data)
-
 		select {
 		case session.WriteChannel <- p:
 			return nil

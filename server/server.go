@@ -15,7 +15,7 @@ type GottyServer struct {
 	stopChan   chan bool
 	isShutdown bool
 	config     *config.GottyConfig
-	handler    func(session *session.Session, p *codec.Packet) //包处理函数
+	handler    func(session *session.Session, p codec.Packet) //包处理函数
 	//编解码
 	codec codec.Codec
 }
@@ -24,7 +24,7 @@ func NewGottyServer( //
 	addr string, // 服务地址
 	keepalive time.Duration, // keepalive时间，秒
 	config *config.GottyConfig, // 配置信息
-	handler func(session *session.Session, p *codec.Packet), //包处理函数
+	handler func(session *session.Session, p codec.Packet), //包处理函数
 	codec codec.Codec, //编解码器
 ) *GottyServer {
 	server := &GottyServer{
