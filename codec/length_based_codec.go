@@ -141,7 +141,7 @@ func (lbc *LengthBasedCodec) Write(bWriter *bufio.Writer, lbp Packet) error {
 
 //Marshal 将业务实体转为packet
 func (lbc *LengthBasedCodec) Marshal(m Message) (Packet, error) {
-	return lbc.decoder.Decode(m)
+	return m.ToPacket()
 }
 
 //Unmarshal 将包转为业务实体

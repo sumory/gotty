@@ -10,7 +10,7 @@ import (
 type Message interface {
 	Length() int
 	FromPacket(p Packet) error
-	ToPacket(p Packet) error
+	ToPacket() (Packet, error)
 	Bytes() ([]byte, error)
 }
 
@@ -51,9 +51,9 @@ func (sm *SimpleMessage) FromPacket(p Packet) error {
 	return nil
 }
 
-func (sm *SimpleMessage) ToPacket(p Packet) error {
+func (sm *SimpleMessage) ToPacket() (Packet, error) {
 	//not implemented
-	return nil
+	return nil, UnImplementedError
 }
 
 func (sm *SimpleMessage) Bytes() ([]byte, error) {
@@ -77,9 +77,9 @@ func (msgFunc MessageFunc) FromPacket(p Packet) error {
 	return nil
 }
 
-func (msgFunc MessageFunc) ToPacket(p Packet) error {
+func (msgFunc MessageFunc) ToPacket() (Packet, error) {
 	//not implemented
-	return nil
+	return nil, UnImplementedError
 }
 
 func (msgFunc MessageFunc) Bytes() ([]byte, error) {

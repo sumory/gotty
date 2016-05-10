@@ -13,4 +13,6 @@ var (
 	NilBufferError      = errors.New("Buffer is nil")
 	HeaderTooLargeError = errors.New("Header is larger than total packet")
 	HeaderTooSmallError = errors.New("Header size should not be less then zero")
+
+	UnImplementedError = errors.New("not implemented or not support")
 )
